@@ -15,6 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { QuizProvider } from "@/contexts/QuizContext";
+import { initializeAdMob } from "@/utils/adProvider";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -42,6 +43,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
+      initializeAdMob();
     }
   }, [fontsLoaded, fontError]);
 

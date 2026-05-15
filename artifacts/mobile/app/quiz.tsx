@@ -14,10 +14,21 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ADS } from "@/constants/ads";
 import colors from "@/constants/colors";
-import { useQuiz, type LifelineType } from "@/contexts/QuizContext";
+import { INITIAL_TIME, useQuiz, type LifelineType } from "@/contexts/QuizContext";
 import { useColors } from "@/hooks/useColors";
+import {
+  AdEventType,
+  InterstitialAd,
+  RewardedAd,
+  RewardedAdEventType,
+  isAdMobAvailable,
+} from "@/utils/adProvider";
 
+// ---------------------------------------------------------------------------
+// AnswerButton
+// ---------------------------------------------------------------------------
 function AnswerButton({
   text,
   index,
@@ -37,7 +48,7 @@ function AnswerButton({
 }) {
   const appColors = useColors();
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const bgAnim = useRef(new Animated.Value(0)).current;
+  const labels = ["A", "B", "C", "D"];
 
   const isSelected = selectedAnswer === index;
   const isCorrect = index === correctIndex;
@@ -48,8 +59,6 @@ function AnswerButton({
   let textColor = appColors.foreground;
   let labelBg = appColors.muted;
   let labelText = appColors.mutedForeground;
-
-  const labels = ["A", "B", "C", "D"];
 
   if (isAnswered && isCorrect) {
     borderColor = "#22C55E";
@@ -124,6 +133,9 @@ function AnswerButton({
   );
 }
 
+// ---------------------------------------------------------------------------
+// LifelineButton
+// ---------------------------------------------------------------------------
 function LifelineButton({
   icon,
   label,
@@ -167,7 +179,11 @@ function LifelineButton({
         ]}
         testID={`lifeline-${label.toLowerCase().replace(/\s/g, "-")}`}
       >
-        <Ionicons name={icon as any} size={18} color={disabled ? appColors.mutedForeground : color} />
+        <Ionicons
+          name={icon as any}
+          size={18}
+          color={disabled ? appColors.mutedForeground : color}
+        />
         <Text
           style={[
             styles.lifelineBtnText,
@@ -181,7 +197,10 @@ function LifelineButton({
   );
 }
 
-function InterstitialAdModal({
+// ---------------------------------------------------------------------------
+// Simulated Interstitial (Expo Go fallback)
+// ---------------------------------------------------------------------------
+function SimulatedInterstitialModal({
   visible,
   onDismiss,
 }: {
@@ -230,9 +249,7 @@ function InterstitialAdModal({
           <Text style={[styles.adModalLabel, { color: appColors.mutedForeground }]}>
             ADVERTISEMENT
           </Text>
-          <View
-            style={[styles.adModalContent, { backgroundColor: appColors.muted }]}
-          >
+          <View style={[styles.adModalContent, { backgroundColor: appColors.muted }]}>
             <Ionicons name="megaphone" size={40} color={appColors.primary} />
             <Text style={[styles.adModalTitle, { color: appColors.foreground }]}>
               Sponsored Content
@@ -258,7 +275,10 @@ function InterstitialAdModal({
   );
 }
 
-function RewardedAdModal({
+// ---------------------------------------------------------------------------
+// Simulated Rewarded Ad (Expo Go fallback)
+// ---------------------------------------------------------------------------
+function SimulatedRewardedModal({
   visible,
   lifelineName,
   onConfirm,
@@ -273,14 +293,12 @@ function RewardedAdModal({
   const [watching, setWatching] = useState(false);
   const [done, setDone] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
-  const [adProgress, setAdProgress] = useState(0);
 
   useEffect(() => {
     if (!visible) {
       setWatching(false);
       setDone(false);
       progressAnim.setValue(0);
-      setAdProgress(0);
     }
   }, [visible]);
 
@@ -291,18 +309,7 @@ function RewardedAdModal({
       toValue: 1,
       duration: 3000,
       useNativeDriver: false,
-    }).start(() => {
-      setDone(true);
-    });
-    const interval = setInterval(() => {
-      setAdProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 33;
-      });
-    }, 1000);
+    }).start(() => setDone(true));
   };
 
   const barWidth = progressAnim.interpolate({
@@ -313,9 +320,7 @@ function RewardedAdModal({
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.adModalOverlay}>
-        <View
-          style={[styles.rewardModalBox, { backgroundColor: appColors.card }]}
-        >
+        <View style={[styles.rewardModalBox, { backgroundColor: appColors.card }]}>
           <View style={styles.rewardHeader}>
             <Ionicons name="gift" size={24} color="#F59E0B" />
             <Text style={[styles.rewardTitle, { color: appColors.foreground }]}>
@@ -325,14 +330,12 @@ function RewardedAdModal({
               <Ionicons name="close" size={22} color={appColors.mutedForeground} />
             </Pressable>
           </View>
-
           <Text style={[styles.rewardBody, { color: appColors.mutedForeground }]}>
             Watch a short ad to unlock{"\n"}
             <Text style={{ color: appColors.primary, fontFamily: "Inter_700Bold" }}>
               {lifelineName}
             </Text>
           </Text>
-
           {!watching && !done && (
             <Pressable
               onPress={watchAd}
@@ -342,15 +345,12 @@ function RewardedAdModal({
               <Text style={styles.watchAdBtnText}>Watch Ad</Text>
             </Pressable>
           )}
-
           {watching && !done && (
             <View style={styles.watchingContainer}>
               <Text style={[styles.watchingText, { color: appColors.mutedForeground }]}>
                 Watching ad...
               </Text>
-              <View
-                style={[styles.adProgressTrack, { backgroundColor: appColors.muted }]}
-              >
+              <View style={[styles.adProgressTrack, { backgroundColor: appColors.muted }]}>
                 <Animated.View
                   style={[
                     styles.adProgressBar,
@@ -360,7 +360,6 @@ function RewardedAdModal({
               </View>
             </View>
           )}
-
           {done && (
             <Pressable
               onPress={onConfirm}
@@ -376,6 +375,9 @@ function RewardedAdModal({
   );
 }
 
+// ---------------------------------------------------------------------------
+// QuizScreen
+// ---------------------------------------------------------------------------
 export default function QuizScreen() {
   const appColors = useColors();
   const insets = useSafeAreaInsets();
@@ -401,22 +403,136 @@ export default function QuizScreen() {
     resetQuiz,
   } = useQuiz();
 
+  // ---- Timer progress bar animation ----
   const timerBarAnim = useRef(new Animated.Value(1)).current;
   const questionFadeAnim = useRef(new Animated.Value(0)).current;
   const prevIndex = useRef(-1);
 
+  // ---- AdMob refs ----
+  const interstitialRef = useRef<any>(null);
+  const interstitialReadyRef = useRef(false);
+  const rewardedRef = useRef<any>(null);
+  const rewardedReadyRef = useRef(false);
+  const rewardEarnedRef = useRef(false);
+
+  // ---- Initialize AdMob ad objects once on mount ----
   useEffect(() => {
-    if (phase === "complete") {
-      router.replace("/results");
+    if (!isAdMobAvailable || Platform.OS === "web") return;
+
+    // -- Interstitial --
+    try {
+      const interstitial = InterstitialAd.createForAdRequest(
+        ADS.INTERSTITIAL_ID,
+        { requestNonPersonalizedAdsOnly: true }
+      );
+      interstitialRef.current = interstitial;
+
+      const unsubLoaded = interstitial.addAdEventListener(
+        AdEventType.LOADED,
+        () => { interstitialReadyRef.current = true; }
+      );
+      const unsubClosed = interstitial.addAdEventListener(
+        AdEventType.CLOSED,
+        () => {
+          interstitialReadyRef.current = false;
+          dismissInterstitial();
+          interstitial.load(); // preload next
+        }
+      );
+      const unsubError = interstitial.addAdEventListener(
+        AdEventType.ERROR,
+        () => {
+          interstitialReadyRef.current = false;
+          dismissInterstitial(); // dismiss gracefully on error
+        }
+      );
+
+      interstitial.load();
+
+      // -- Rewarded --
+      const rewarded = RewardedAd.createForAdRequest(ADS.REWARDED_ID, {
+        requestNonPersonalizedAdsOnly: true,
+      });
+      rewardedRef.current = rewarded;
+
+      const unsubRewLoaded = rewarded.addAdEventListener(
+        RewardedAdEventType.LOADED,
+        () => { rewardedReadyRef.current = true; }
+      );
+      const unsubRewEarned = rewarded.addAdEventListener(
+        RewardedAdEventType.EARNED_REWARD,
+        () => { rewardEarnedRef.current = true; }
+      );
+      const unsubRewClosed = rewarded.addAdEventListener(
+        AdEventType.CLOSED,
+        () => {
+          rewardedReadyRef.current = false;
+          if (rewardEarnedRef.current) {
+            confirmLifelineAd();
+          } else {
+            cancelLifelineAd();
+          }
+          rewardEarnedRef.current = false;
+          rewarded.load(); // preload next
+        }
+      );
+      const unsubRewError = rewarded.addAdEventListener(
+        AdEventType.ERROR,
+        () => {
+          rewardedReadyRef.current = false;
+          cancelLifelineAd(); // cancel gracefully on error
+        }
+      );
+
+      rewarded.load();
+
+      return () => {
+        unsubLoaded();
+        unsubClosed();
+        unsubError();
+        unsubRewLoaded();
+        unsubRewEarned();
+        unsubRewClosed();
+        unsubRewError();
+      };
+    } catch {
+      // Module present but failed — fall back to simulated ads
+    }
+  }, []);
+
+  // ---- Show real interstitial when phase becomes 'interstitial' ----
+  useEffect(() => {
+    if (phase !== "interstitial" || !isAdMobAvailable || Platform.OS === "web") return;
+
+    if (interstitialRef.current && interstitialReadyRef.current) {
+      try {
+        interstitialRef.current.show();
+      } catch {
+        dismissInterstitial();
+      }
+    } else {
+      // Ad not ready yet — dismiss after short grace period
+      const t = setTimeout(dismissInterstitial, 500);
+      return () => clearTimeout(t);
     }
   }, [phase]);
 
+  // ---- Show real rewarded ad when phase becomes 'reward_ad' ----
   useEffect(() => {
-    if (!category) {
-      router.replace("/");
-    }
-  }, [category]);
+    if (phase !== "reward_ad" || !isAdMobAvailable || Platform.OS === "web") return;
 
+    if (rewardedRef.current && rewardedReadyRef.current) {
+      rewardEarnedRef.current = false;
+      try {
+        rewardedRef.current.show();
+      } catch {
+        cancelLifelineAd();
+      }
+    }
+    // If not ready, the simulated modal is shown as fallback below
+  }, [phase]);
+
+  // ---- Question entrance animation ----
   useEffect(() => {
     if (currentIndex !== prevIndex.current) {
       prevIndex.current = currentIndex;
@@ -430,6 +546,7 @@ export default function QuizScreen() {
     }
   }, [currentIndex]);
 
+  // ---- Smooth timer bar ----
   useEffect(() => {
     if (phase === "answering") {
       const ratio = timeLeft / (totalTime || INITIAL_TIME);
@@ -441,19 +558,25 @@ export default function QuizScreen() {
     }
   }, [timeLeft]);
 
+  useEffect(() => {
+    if (phase === "complete") router.replace("/results");
+  }, [phase]);
+
+  useEffect(() => {
+    if (!category) router.replace("/");
+  }, [category]);
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const question = questions[currentIndex];
   const isAnswered = phase === "answered" || phase === "interstitial";
-  const INITIAL_TIME = 10;
+  const catColor = category ? colors.category[category].color : appColors.primary;
 
   const timerColor = timerBarAnim.interpolate({
     inputRange: [0, 0.3, 0.6, 1],
     outputRange: ["#EF4444", "#F97316", "#EAB308", "#22C55E"],
   });
-
-  const catColor = category ? colors.category[category].color : appColors.primary;
 
   const handleAnswer = (index: number) => {
     if (phase !== "answering") return;
@@ -483,6 +606,13 @@ export default function QuizScreen() {
     hint: "Hint",
   };
 
+  // Simulated modal visibility: only show when AdMob native module is unavailable
+  const showSimulatedInterstitial = phase === "interstitial" && !isAdMobAvailable;
+  const showSimulatedRewarded =
+    phase === "reward_ad" &&
+    (!isAdMobAvailable ||
+      (isAdMobAvailable && !rewardedReadyRef.current));
+
   if (!question || !category) return null;
 
   return (
@@ -494,6 +624,7 @@ export default function QuizScreen() {
     >
       <StatusBar barStyle="light-content" />
 
+      {/* Top bar */}
       <View style={styles.topBar}>
         <Pressable onPress={handleQuit} style={styles.quitBtn}>
           <Ionicons name="close" size={22} color={appColors.mutedForeground} />
@@ -506,11 +637,7 @@ export default function QuizScreen() {
                 styles.dot,
                 {
                   backgroundColor:
-                    i < currentIndex
-                      ? catColor
-                      : i === currentIndex
-                        ? catColor
-                        : appColors.muted,
+                    i <= currentIndex ? catColor : appColors.muted,
                   opacity: i === currentIndex ? 1 : i < currentIndex ? 0.6 : 0.3,
                   width: i === currentIndex ? 20 : 8,
                 },
@@ -523,21 +650,33 @@ export default function QuizScreen() {
         </View>
       </View>
 
+      {/* Timer bar */}
       <View style={[styles.timerTrack, { backgroundColor: appColors.muted }]}>
         <Animated.View
           style={[
             styles.timerBar,
-            { width: timerBarAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }), backgroundColor: timerColor },
+            {
+              width: timerBarAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ["0%", "100%"],
+              }),
+              backgroundColor: timerColor,
+            },
           ]}
         />
       </View>
 
+      {/* Timer label row */}
       <View style={styles.timerRow}>
         <Text style={[styles.timerLabel, { color: appColors.mutedForeground }]}>
           Q{currentIndex + 1} / {questions.length}
         </Text>
         <View style={styles.timerCountdown}>
-          <Ionicons name="timer" size={14} color={timeLeft <= 3 ? "#EF4444" : appColors.mutedForeground} />
+          <Ionicons
+            name="timer"
+            size={14}
+            color={timeLeft <= 3 ? "#EF4444" : appColors.mutedForeground}
+          />
           <Text
             style={[
               styles.timerNumber,
@@ -549,6 +688,7 @@ export default function QuizScreen() {
         </View>
       </View>
 
+      {/* Category badge */}
       <View
         style={[
           styles.categoryBadge,
@@ -565,24 +705,24 @@ export default function QuizScreen() {
         </Text>
       </View>
 
+      {/* Question */}
       <Animated.View style={{ opacity: questionFadeAnim }}>
         <Text style={[styles.questionText, { color: appColors.foreground }]}>
           {question.question}
         </Text>
       </Animated.View>
 
+      {/* Hint */}
       {hintText && (
         <View
-          style={[
-            styles.hintBox,
-            { backgroundColor: "#F59E0B22", borderColor: "#F59E0B" },
-          ]}
+          style={[styles.hintBox, { backgroundColor: "#F59E0B22", borderColor: "#F59E0B" }]}
         >
           <Ionicons name="bulb" size={14} color="#F59E0B" />
           <Text style={[styles.hintText, { color: "#F59E0B" }]}>{hintText}</Text>
         </View>
       )}
 
+      {/* Answer buttons */}
       <View style={styles.answersContainer}>
         {question.options.map((opt, i) => (
           <AnswerButton
@@ -593,11 +733,12 @@ export default function QuizScreen() {
             correctIndex={question.correctIndex}
             eliminated={eliminatedOptions.includes(i)}
             onPress={() => handleAnswer(i)}
-            disabled={isAnswered || phase === "reward_ad"}
+            disabled={isAnswered || phase === "reward_ad" || phase === "interstitial"}
           />
         ))}
       </View>
 
+      {/* Lifelines */}
       <View style={styles.lifelineRow}>
         <LifelineButton
           icon="remove-circle"
@@ -605,7 +746,11 @@ export default function QuizScreen() {
           count={lifelines.fiftyFifty}
           color="#818CF8"
           onPress={() => handleLifeline("fiftyFifty")}
-          disabled={isAnswered || lifelines.fiftyFifty === 0 || eliminatedOptions.length > 0}
+          disabled={
+            isAnswered ||
+            lifelines.fiftyFifty === 0 ||
+            eliminatedOptions.length > 0
+          }
         />
         <LifelineButton
           icon="time"
@@ -625,6 +770,7 @@ export default function QuizScreen() {
         />
       </View>
 
+      {/* Next button */}
       {phase === "answered" && (
         <Pressable
           onPress={handleNext}
@@ -640,13 +786,15 @@ export default function QuizScreen() {
         </Pressable>
       )}
 
-      <InterstitialAdModal
-        visible={phase === "interstitial"}
+      {/* Simulated interstitial — only shown when real AdMob is unavailable */}
+      <SimulatedInterstitialModal
+        visible={showSimulatedInterstitial}
         onDismiss={dismissInterstitial}
       />
 
-      <RewardedAdModal
-        visible={phase === "reward_ad"}
+      {/* Simulated rewarded — only shown when real AdMob is unavailable */}
+      <SimulatedRewardedModal
+        visible={showSimulatedRewarded}
         lifelineName={pendingLifeline ? lifelineNames[pendingLifeline] : ""}
         onConfirm={confirmLifelineAd}
         onCancel={cancelLifelineAd}
@@ -828,9 +976,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Inter_700Bold",
   },
+  // Ad modals
   adModalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: "rgba(0,0,0,0.85)",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,

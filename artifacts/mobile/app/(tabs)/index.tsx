@@ -13,16 +13,18 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useQuiz } from "@/contexts/QuizContext";
-import { useColors } from "@/hooks/useColors";
-import type { Category } from "@/data/questions";
+import { ADS } from "@/constants/ads";
 import colors from "@/constants/colors";
+import { useQuiz } from "@/contexts/QuizContext";
+import type { Category } from "@/data/questions";
+import { useColors } from "@/hooks/useColors";
+import {
+  BannerAd,
+  BannerAdSize,
+  isAdMobAvailable,
+} from "@/utils/adProvider";
 
-const CATEGORIES: Array<{
-  id: Category;
-  name: string;
-  questionCount: number;
-}> = [
+const CATEGORIES: Array<{ id: Category; name: string; questionCount: number }> = [
   { id: "geography", name: "Geography", questionCount: 10 },
   { id: "sports", name: "Sports", questionCount: 10 },
   { id: "science", name: "Science", questionCount: 10 },
@@ -65,16 +67,10 @@ function CategoryCard({
   }, []);
 
   const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(scaleAnim, { toValue: 0.95, useNativeDriver: true }).start();
   };
   const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
   };
 
   const iconName =
@@ -116,13 +112,60 @@ function CategoryCard({
   );
 }
 
+function AdBannerSection() {
+  const appColors = useColors();
+  const insets = useSafeAreaInsets();
+  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  if (isAdMobAvailable && BannerAd && BannerAdSize) {
+    return (
+      <View style={[styles.realAdContainer, { paddingBottom: bottomPad + 8 }]}>
+        <Text style={[styles.adLabel, { color: appColors.mutedForeground }]}>
+          ADVERTISEMENT
+        </Text>
+        <View style={styles.realAdWrapper}>
+          <BannerAd
+            unitId={ADS.BANNER_ID}
+            size={BannerAdSize.BANNER}
+            requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+            onAdFailedToLoad={() => {/* fail silently */}}
+          />
+        </View>
+      </View>
+    );
+  }
+
+  // Fallback for Expo Go / web
+  return (
+    <View
+      style={[
+        styles.adBanner,
+        {
+          backgroundColor: appColors.card,
+          borderColor: appColors.border,
+          marginBottom: bottomPad + 8,
+        },
+      ]}
+    >
+      <Text style={[styles.adLabel, { color: appColors.mutedForeground }]}>
+        ADVERTISEMENT
+      </Text>
+      <View style={[styles.adContent, { backgroundColor: appColors.muted }]}>
+        <Ionicons name="megaphone" size={16} color={appColors.mutedForeground} />
+        <Text style={[styles.adText, { color: appColors.mutedForeground }]}>
+          Your ad could be here • quizmaster.app
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const appColors = useColors();
   const insets = useSafeAreaInsets();
   const { startQuiz } = useQuiz();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const handleCategory = (category: Category) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -199,26 +242,7 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <View
-        style={[
-          styles.adBanner,
-          {
-            backgroundColor: appColors.card,
-            borderColor: appColors.border,
-            marginBottom: bottomPad + 8,
-          },
-        ]}
-      >
-        <Text style={[styles.adLabel, { color: appColors.mutedForeground }]}>
-          ADVERTISEMENT
-        </Text>
-        <View style={[styles.adContent, { backgroundColor: appColors.muted }]}>
-          <Ionicons name="megaphone" size={16} color={appColors.mutedForeground} />
-          <Text style={[styles.adText, { color: appColors.mutedForeground }]}>
-            Your ad could be here • quizmaster.app
-          </Text>
-        </View>
-      </View>
+      <AdBannerSection />
     </View>
   );
 }
@@ -334,6 +358,13 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 11,
     fontFamily: "Inter_500Medium",
+  },
+  realAdContainer: {
+    alignItems: "center",
+    marginTop: "auto",
+  },
+  realAdWrapper: {
+    alignItems: "center",
   },
   adBanner: {
     borderRadius: 12,

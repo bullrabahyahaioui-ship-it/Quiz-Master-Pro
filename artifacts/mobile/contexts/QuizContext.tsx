@@ -61,7 +61,7 @@ interface QuizContextValue extends QuizState {
   resetQuiz: () => void;
 }
 
-const INITIAL_TIME = 10;
+export const INITIAL_TIME = 10;
 const LEADERBOARD_KEY = "quizmaster_leaderboard_v1";
 const TOTAL_QUESTIONS = 10;
 
@@ -98,6 +98,7 @@ export function QuizProvider({ children }: { children: React.ReactNode }) {
   const startTimer = useCallback(
     (duration: number) => {
       stopTimer();
+      if (duration <= 0) return;
       timerRef.current = setInterval(() => {
         setState((prev) => {
           if (prev.phase !== "answering") {
@@ -133,14 +134,11 @@ export function QuizProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
-  const saveLeaderboard = useCallback(
-    async (entries: LeaderboardEntry[]) => {
-      try {
-        await AsyncStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries));
-      } catch {}
-    },
-    []
-  );
+  const saveLeaderboard = useCallback(async (entries: LeaderboardEntry[]) => {
+    try {
+      await AsyncStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     loadLeaderboard();
@@ -151,18 +149,48 @@ export function QuizProvider({ children }: { children: React.ReactNode }) {
       stopTimer();
       questionCountRef.current = 0;
       const questions = getQuestionsForCategory(category);
-      const newState: QuizState = {
+      setState((prev) => ({
         ...defaultState,
         category,
         questions,
         phase: "answering",
-        leaderboard: state.leaderboard,
-      };
-      setState(newState);
-      startTimer(INITIAL_TIME);
+        leaderboard: prev.leaderboard,
+      }));
     },
-    [state.leaderboard, startTimer, stopTimer]
+    [stopTimer]
   );
+
+  // Start timer whenever phase becomes 'answering' (new question or returning from lifeline ad)
+  useEffect(() => {
+    if (state.phase === "answering") {
+      startTimer(state.timeLeft);
+    } else {
+      stopTimer();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase, state.currentIndex]);
+
+  // Save leaderboard on quiz complete
+  useEffect(() => {
+    if (state.phase === "complete" && state.category) {
+      const entry: LeaderboardEntry = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        category: state.category,
+        score: state.score,
+        total: TOTAL_QUESTIONS,
+        percentage: Math.round((state.score / TOTAL_QUESTIONS) * 100),
+        timestamp: Date.now(),
+      };
+      setState((prev) => {
+        const updated = [...prev.leaderboard, entry]
+          .sort((a, b) => b.score - a.score || b.percentage - a.percentage)
+          .slice(0, 10);
+        saveLeaderboard(updated);
+        return { ...prev, leaderboard: updated };
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase]);
 
   const selectAnswer = useCallback(
     (index: number) => {
@@ -192,18 +220,9 @@ export function QuizProvider({ children }: { children: React.ReactNode }) {
       }
 
       questionCountRef.current += 1;
-      if (questionCountRef.current % 3 === 0) {
-        return {
-          ...prev,
-          currentIndex: nextIndex,
-          selectedAnswer: null,
-          eliminatedOptions: [],
-          hintText: null,
-          phase: "interstitial",
-        };
-      }
+      const showInterstitial = questionCountRef.current % 3 === 0;
 
-      const newState = {
+      return {
         ...prev,
         currentIndex: nextIndex,
         selectedAnswer: null,
@@ -211,37 +230,10 @@ export function QuizProvider({ children }: { children: React.ReactNode }) {
         hintText: null,
         timeLeft: INITIAL_TIME,
         totalTime: INITIAL_TIME,
-        phase: "answering" as QuizPhase,
+        phase: showInterstitial ? "interstitial" : "answering",
       };
-      return newState;
     });
   }, []);
-
-  useEffect(() => {
-    if (state.phase === "answering") {
-      startTimer(state.timeLeft);
-    }
-  }, [state.phase, state.currentIndex]);
-
-  useEffect(() => {
-    if (state.phase === "complete" && state.category) {
-      const entry: LeaderboardEntry = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        category: state.category,
-        score: state.score,
-        total: TOTAL_QUESTIONS,
-        percentage: Math.round((state.score / TOTAL_QUESTIONS) * 100),
-        timestamp: Date.now(),
-      };
-      setState((prev) => {
-        const updated = [...prev.leaderboard, entry]
-          .sort((a, b) => b.score - a.score || b.percentage - a.percentage)
-          .slice(0, 10);
-        saveLeaderboard(updated);
-        return { ...prev, leaderboard: updated };
-      });
-    }
-  }, [state.phase]);
 
   const requestLifeline = useCallback(
     (type: LifelineType) => {
@@ -260,8 +252,9 @@ export function QuizProvider({ children }: { children: React.ReactNode }) {
       if (prev.phase !== "reward_ad" || !prev.pendingLifeline) return prev;
       const type = prev.pendingLifeline;
       const question = prev.questions[prev.currentIndex];
-      let updates: Partial<QuizState> = {
-        phase: "answering",
+
+      const updates: Partial<QuizState> = {
+        phase: "answering" as QuizPhase,
         pendingLifeline: null,
         lifelines: {
           ...prev.lifelines,
@@ -285,25 +278,16 @@ export function QuizProvider({ children }: { children: React.ReactNode }) {
 
       return { ...prev, ...updates };
     });
-    startTimer(0);
-    setState((prev) => {
-      if (prev.phase === "answering") {
-        startTimer(prev.timeLeft);
-      }
-      return prev;
-    });
-  }, [startTimer]);
+    // Timer restarts via the useEffect watching phase + currentIndex changes
+  }, []);
 
   const cancelLifelineAd = useCallback(() => {
     setState((prev) => {
       if (prev.phase !== "reward_ad") return prev;
       return { ...prev, phase: "answering", pendingLifeline: null };
     });
-    setState((prev) => {
-      startTimer(prev.timeLeft);
-      return prev;
-    });
-  }, [startTimer]);
+    // Timer restarts via the useEffect watching phase changes
+  }, []);
 
   const dismissInterstitial = useCallback(() => {
     setState((prev) => {
@@ -315,6 +299,7 @@ export function QuizProvider({ children }: { children: React.ReactNode }) {
         phase: "answering",
       };
     });
+    // Timer restarts via the useEffect watching phase changes
   }, []);
 
   const resetQuiz = useCallback(() => {
