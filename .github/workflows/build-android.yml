@@ -17,12 +17,14 @@ jobs:
           distribution: 'temurin'
       - name: Install pnpm
         run: npm install -g pnpm
-      - name: Install dependencies
+      - name: Install root dependencies
         run: pnpm install --no-frozen-lockfile
+      - name: Install mobile dependencies
+        run: cd artifacts/mobile && pnpm install --no-frozen-lockfile
       - name: Install Expo CLI
         run: npm install -g @expo/cli
       - name: Prebuild
-        run: cd artifacts/mobile && npx expo prebuild --platform android
+        run: cd artifacts/mobile && npx expo prebuild --platform android --no-install
       - name: Build APK
         run: cd artifacts/mobile/android && ./gradlew assembleRelease
       - name: Upload APK
