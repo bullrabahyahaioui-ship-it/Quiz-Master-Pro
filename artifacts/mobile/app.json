@@ -27,6 +27,8 @@
       }
     },
     "android": {
+      "package": "com.quizmaster.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#0A0E27"
