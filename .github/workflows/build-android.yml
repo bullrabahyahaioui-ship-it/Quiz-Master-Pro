@@ -26,9 +26,9 @@ jobs:
       - name: Prebuild
         run: cd artifacts/mobile && npx expo prebuild --platform android --no-install
       - name: Build APK
-        run: cd artifacts/mobile/android && ./gradlew assembleRelease
+        run: cd artifacts/mobile/android && ./gradlew assembleDebug
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: QuizMaster-APK
-          path: artifacts/mobile/android/app/build/outputs/apk/release/app-release.apk
+          path: artifacts/mobile/android/app/build/outputs/apk/debug/app-debug.apk
