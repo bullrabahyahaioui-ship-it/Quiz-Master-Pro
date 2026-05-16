@@ -2,7 +2,7 @@ name: Build Android APK
 on:
   push:
     branches: [main]
-    workflow_dispatch:
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,11 +22,11 @@ jobs:
       - name: Install Expo CLI
         run: npm install -g @expo/cli
       - name: Prebuild
-        run: npx expo prebuild --platform android
+        run: cd artifacts/mobile && npx expo prebuild --platform android
       - name: Build APK
-        run: cd android && ./gradlew assembleRelease
+        run: cd artifacts/mobile/android && ./gradlew assembleRelease
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: QuizMaster-APK
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: artifacts/mobile/android/app/build/outputs/apk/release/app-release.apk
