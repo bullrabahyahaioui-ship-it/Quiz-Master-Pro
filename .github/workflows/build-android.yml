@@ -26,7 +26,7 @@ jobs:
       - name: Prebuild
         run: cd artifacts/mobile && npx expo prebuild --platform android --no-install
       - name: Generate Keystore
-        run: keytool -genkey -v -keystore release.keystore -alias release keyalg RSA -keysize 2048 -validity 10000 -storkpss android -dname "CN=QuizMaster, OU=App, O=Quiz, L=Cty, ST=ST, C=US"
+        run: keytool -genkeypair -v -keystore release.keystore -alias release -keyalg RSA -keysize 2048 -validity 10000 -storepass android -dname "CN=QuizMaster, OU=App, O=Quiz, L=Cty, ST=ST, C=US"
       - name: Build Release APK
         run: cd artifacts/mobile/android && ./gradlew assembleRelease -Pandroid.injected.signing.store.file=../../../release.keystore -Pandroid.injected.signing.store.password=android -Pandroid.injected.signing.key.alias=release -Pandroid.injected.signing.key.password=android
       - name: Upload APK
